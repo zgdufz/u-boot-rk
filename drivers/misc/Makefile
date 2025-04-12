@@ -18,6 +18,7 @@ obj-$(CONFIG_CROS_EC_LPC) += cros_ec_lpc.o
 obj-$(CONFIG_CROS_EC_I2C) += cros_ec_i2c.o
 obj-$(CONFIG_CROS_EC_SANDBOX) += cros_ec_sandbox.o
 obj-$(CONFIG_CROS_EC_SPI) += cros_ec_spi.o
+obj-$(CONFIG_ROCKCHIP_PM_CONFIG) += rockchip_pm_config.o
 endif
 obj-$(CONFIG_FSL_IIM) += fsl_iim.o
 obj-$(CONFIG_LED_STATUS_GPIO) += gpio_led.o
@@ -65,6 +66,7 @@ obj-$(CONFIG_ROCKCHIP_RV1126) += rv1126-secure-otp.o
 obj-$(CONFIG_ROCKCHIP_RK3588) += rk3588-secure-otp.o
 obj-$(CONFIG_ROCKCHIP_RK3528) += rk3528-secure-otp.o
 obj-$(CONFIG_ROCKCHIP_RK3562) += rk3562-secure-otp.o
+obj-$(CONFIG_ROCKCHIP_RK3576) += rk3576-secure-otp.o
 endif
 
 obj-$(CONFIG_$(SPL_TPL_)ROCKCHIP_HW_DECOMPRESS) += rockchip_decompress.o

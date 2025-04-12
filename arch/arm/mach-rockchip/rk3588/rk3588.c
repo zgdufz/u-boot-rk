@@ -13,6 +13,7 @@
 #include <asm/arch/cpu.h>
 #include <asm/arch/hardware.h>
 #include <asm/arch/ioc_rk3588.h>
+#include <asm/arch/rockchip_smccc.h>
 #include <dt-bindings/clock/rk3588-cru.h>
 
 DECLARE_GLOBAL_DATA_PTR;
@@ -59,10 +60,14 @@ DECLARE_GLOBAL_DATA_PTR;
 
 #define BUS_IOC_BASE			0xfd5f8000
 #define BUS_IOC_GPIO2A_IOMUX_SEL_L	0x40
+#define BUS_IOC_GPIO2A_IOMUX_SEL_H	0x44
 #define BUS_IOC_GPIO2B_IOMUX_SEL_L	0x48
+#define BUS_IOC_GPIO2B_IOMUX_SEL_H	0x4c
 #define BUS_IOC_GPIO2D_IOMUX_SEL_L	0x58
 #define BUS_IOC_GPIO2D_IOMUX_SEL_H	0x5c
 #define BUS_IOC_GPIO3A_IOMUX_SEL_L	0x60
+#define BUS_IOC_GPIO3A_IOMUX_SEL_H	0x64
+#define BUS_IOC_GPIO3C_IOMUX_SEL_H	0x74
 
 #define VCCIO3_5_IOC_BASE		0xfd5fa000
 #define IOC_VCCIO3_5_GPIO2A_DS_H	0x44
@@ -851,6 +856,57 @@ void spl_board_storages_fixup(struct spl_image_loader *loader)
 }
 #endif
 
+void board_set_iomux(enum if_type if_type, int devnum, int routing)
+{
+	switch (if_type) {
+	case IF_TYPE_MMC:
+		/*
+		* set the emmc io drive strength:
+		* data and cmd: 50ohm
+		* clock: 25ohm
+		*/
+		writel(0x00770052, EMMC_IOC_BASE + EMMC_IOC_GPIO2A_DS_L);
+		writel(0x77772222, EMMC_IOC_BASE + EMMC_IOC_GPIO2D_DS_L);
+		writel(0x77772222, EMMC_IOC_BASE + EMMC_IOC_GPIO2D_DS_H);
+
+		/* set emmc iomux */
+		writel(0xffff1111, BUS_IOC_BASE + BUS_IOC_GPIO2A_IOMUX_SEL_L);
+		writel(0xffff1111, BUS_IOC_BASE + BUS_IOC_GPIO2D_IOMUX_SEL_L);
+		writel(0xffff1111, BUS_IOC_BASE + BUS_IOC_GPIO2D_IOMUX_SEL_H);
+		break;
+
+	case IF_TYPE_MTD:
+		if (routing == 0) {
+			writel(0x000f0002, BUS_IOC_BASE + BUS_IOC_GPIO2A_IOMUX_SEL_L);
+			writel(0xffff2222, BUS_IOC_BASE + BUS_IOC_GPIO2D_IOMUX_SEL_L);
+			writel(0x00f00020, BUS_IOC_BASE + BUS_IOC_GPIO2D_IOMUX_SEL_H);
+			/* Set the fspi m0 io ds level to 55ohm */
+			writel(0x00070002, EMMC_IOC_BASE + EMMC_IOC_GPIO2A_DS_L);
+			writel(0x77772222, EMMC_IOC_BASE + EMMC_IOC_GPIO2D_DS_L);
+			writel(0x07000200, EMMC_IOC_BASE + EMMC_IOC_GPIO2D_DS_H);
+		} else if (routing == 1) {
+			writel(0xff003300, BUS_IOC_BASE + BUS_IOC_GPIO2A_IOMUX_SEL_H);
+			writel(0xf0ff3033, BUS_IOC_BASE + BUS_IOC_GPIO2B_IOMUX_SEL_L);
+			writel(0x000f0003, BUS_IOC_BASE + BUS_IOC_GPIO2B_IOMUX_SEL_H);
+			/* Set the fspi m1 io ds level to 55ohm */
+			writel(0x33002200, VCCIO3_5_IOC_BASE + IOC_VCCIO3_5_GPIO2A_DS_H);
+			writel(0x30332022, VCCIO3_5_IOC_BASE + IOC_VCCIO3_5_GPIO2B_DS_L);
+			writel(0x00030002, VCCIO3_5_IOC_BASE + IOC_VCCIO3_5_GPIO2B_DS_H);
+		} else if (routing == 2) {
+			writel(0xffff5555, BUS_IOC_BASE + BUS_IOC_GPIO3A_IOMUX_SEL_L);
+			writel(0x00f00050, BUS_IOC_BASE + BUS_IOC_GPIO3A_IOMUX_SEL_H);
+			writel(0x00ff0022, BUS_IOC_BASE + BUS_IOC_GPIO3C_IOMUX_SEL_H);
+			/* Set the fspi m2 io ds level to 55ohm */
+			writel(0x77772222, VCCIO3_5_IOC_BASE + IOC_VCCIO3_5_GPIO3A_DS_L);
+			writel(0x00700020, VCCIO3_5_IOC_BASE + IOC_VCCIO3_5_GPIO3A_DS_H);
+			writel(0x00070002, VCCIO3_5_IOC_BASE + IOC_VCCIO3_5_GPIO3C_DS_H);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
 #ifndef CONFIG_TPL_BUILD
 int arch_cpu_init(void)
 {
@@ -981,21 +1037,6 @@ int arch_cpu_init(void)
 	secure_reg = readl(FIREWALL_SYSMEM_BASE + FW_SYSM_MST27_REG);
 	secure_reg &= 0xffff0000;
 	writel(secure_reg, FIREWALL_SYSMEM_BASE + FW_SYSM_MST27_REG);
-
-	/*
-	 * set the emmc io drive strength:
-	 * data and cmd: 50ohm
-	 * clock: 25ohm
-	 */
-	writel(0x00770052, EMMC_IOC_BASE + EMMC_IOC_GPIO2A_DS_L);
-	writel(0x77772222, EMMC_IOC_BASE + EMMC_IOC_GPIO2D_DS_L);
-	writel(0x77772222, EMMC_IOC_BASE + EMMC_IOC_GPIO2D_DS_H);
-
-	/* set emmc iomux */
-	writel(0xffff1111, BUS_IOC_BASE + BUS_IOC_GPIO2A_IOMUX_SEL_L);
-	writel(0xffff1111, BUS_IOC_BASE + BUS_IOC_GPIO2D_IOMUX_SEL_L);
-	writel(0xffff1111, BUS_IOC_BASE + BUS_IOC_GPIO2D_IOMUX_SEL_H);
-
 #else /* U-Boot */
 	/* uboot: config iomux */
 #ifdef CONFIG_ROCKCHIP_EMMC_IOMUX
@@ -1400,40 +1441,21 @@ int rk_board_fdt_fixup(const void *blob)
 	return 0;
 }
 
-#ifdef CONFIG_SPL_BUILD
-int spl_fit_standalone_release(char *id, uintptr_t entry_point)
+int fit_standalone_release(char *id, uintptr_t entry_point)
 {
-	u32 val;
-
 	/* pmu m0 configuration: */
 	/* set gpll */
 	writel(0x00f00042, CRU_BASE + CRU_GPLL_CON1);
-	/* set pmu mcu to access ddr memory */
-	val = readl(FIREWALL_DDR_BASE + FW_DDR_MST19_REG);
-	writel(val & 0x0000ffff, FIREWALL_DDR_BASE + FW_DDR_MST19_REG);
-	/* set pmu mcu to access system memory */
-	val = readl(FIREWALL_SYSMEM_BASE + FW_SYSM_MST19_REG);
-	writel(val & 0x000000ff, FIREWALL_SYSMEM_BASE + FW_SYSM_MST19_REG);
-	/* set pmu mcu to secure */
-	writel(0x00080000, PMU1_SGRF_BASE + PMU1_SGRF_SOC_CON0);
-	/* set start addr, pmu_mcu_code_addr_start */
-	writel(0xFFFF0000 | (entry_point >> 16), PMU1_SGRF_BASE + PMU1_SGRF_SOC_CON9);
-	/* set pmu_mcu_sram_addr_start */
-	writel(0xFFFF2000, PMU1_SGRF_BASE + PMU1_SGRF_SOC_CON10);
-	/* set pmu_mcu_tcm_addr_start */
-	writel(0xFFFF2000, PMU1_SGRF_BASE + PMU1_SGRF_SOC_CON13);
-	/* set cache cache_peripheral_addr */
-	/* 0xf0000000 ~ 0xfee00000 */
-	writel(0xffff0000, PMU1_SGRF_BASE + PMU1_SGRF_SOC_CON6);
-	writel(0xffffee00, PMU1_SGRF_BASE + PMU1_SGRF_SOC_CON7);
-	writel(0x00ff00ff, PMU1_SGRF_BASE + PMU1_SGRF_SOC_CON8);
-	/* enable PMU WDT reset system */
-	writel(0x02000200, BUS_SGRF_BASE + BUS_SGRF_SOC_CON2);
+
+	sip_smc_mcu_config(ROCKCHIP_SIP_CONFIG_PMUMCU_0_ID,
+			   ROCKCHIP_SIP_CONFIG_MCU_CODE_START_ADDR,
+			   0xffff0000 | (entry_point >> 16));
+
 	/* select WDT trigger global reset. */
 	writel(0x08400840, CRU_BASE + CRU_GLB_RST_CON);
 	/* release pmu mcu */
-	/* writel(0x20000000, PMU1CRU_BASE + PMU1CRU_SOFTRST_CON00); */
+	writel(0x20000000, PMU1CRU_BASE + PMU1CRU_SOFTRST_CON00);
 
 	return 0;
 }
-#endif
+
